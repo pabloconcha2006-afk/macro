@@ -1,0 +1,9 @@
+streamlit
+pandas
+numpy
+requests
+yfinance
+openpyxl
+xlrd
+PyPortfolioOpt
+urllib3
