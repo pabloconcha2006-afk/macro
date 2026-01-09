@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sat Jan  3 02:36:18 2026
+Created on Sat Jan  3 03:26:13 2026
 
 @author: pabloconcha
 """
 
 # -*- coding: utf-8 -*-
 import io
+import os
 from datetime import datetime
 
 import numpy as np
@@ -16,6 +17,8 @@ import requests
 import streamlit as st
 import urllib3
 import yfinance as yf
+from io import StringIO
+from pandas.tseries.offsets import MonthEnd, QuarterEnd
 
 # ---- pypfopt (puede faltar en Streamlit Cloud si no está en requirements.txt) ----
 try:
@@ -28,49 +31,57 @@ except ModuleNotFoundError:
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # =========================
-# CONFIG
+# CONFIG (TU LISTA SP500_ALL SE QUEDA IGUAL)
 # =========================
-SP500_ALL = [
-    "A", "AAL", "AAPL", "ABBV", "ABNB", "ABT", "ACGL", "ACN", "ADBE", "ADI", "ADM", "ADP", "ADSK", "AEE", "AEP", "AES",
-    "AFL", "AIG", "AIZ", "AJG", "AKAM", "ALB", "ALGN", "ALL", "ALLE", "AMAT", "AMD", "AME", "AMGN", "AMP", "AMT",
-    "AMZN", "ANET", "ANSS", "AON", "AOS", "APA", "APD", "APH", "APTV", "ARE", "ATO", "AVB", "AVGO", "AVY", "AWK",
-    "AXON", "AXP", "AYI", "AZO", "BA", "BAC", "BALL", "BAX", "BBWI", "BBY", "BDX", "BEN", "BF-B", "BG", "BIIB", "BIO",
-    "BK", "BKNG", "BKR", "BLDR", "BLK", "BMY", "BR", "BRK-B", "BRO", "BSX", "BWA", "BX", "BXP", "C", "CAG", "CAH",
-    "CARR", "CAT", "CB", "CBOE", "CBRE", "CCI", "CCL", "CDNS", "CDW", "CE", "CEG", "CF", "CFG", "CHD", "CHRW",
-    "CHTR", "CI", "CINF", "CL", "CLX", "CMA", "CMCSA", "CME", "CMG", "CMI", "CMS", "CNC", "CNP", "COF", "COO", "COP",
-    "COR", "COST", "CPB", "CPRT", "CPT", "CRL", "CRM", "CSGP", "CSX", "CTAS", "CTRA", "CTSH", "CTVA", "CVS", "CW", "D",
-    "DAL", "DD", "DE", "DECK", "DFS", "DG", "DGX", "DHI", "DHR", "DIS", "DLR", "DLTR", "DOC", "DOV", "DOW", "DPZ", "DRI",
-    "DTE", "DUK", "DVA", "DVN", "DXCM", "EA", "EBAY", "ECL", "ED", "EFX", "EG", "EIX", "EL", "ELV", "EMN", "EMR",
-    "ENPH", "EOG", "EPAM", "EQIX", "EQR", "ESS", "ETN", "ETR", "EVRG", "EW", "EXC", "EXPD", "EXPE", "EXR", "F", "FANG",
-    "FAST", "FI", "FICO", "FIS", "FITB", "FMC", "FOX", "FOXA", "FRT", "FSLR", "FTNT", "FTV", "GD", "GDDY", "GE", "GILD",
-    "GIS", "GL", "GLW", "GM", "GNRC", "GOOG", "GOOGL", "GPC", "GPN", "GRMN", "GS", "GWRE", "GWW", "HAL", "HAS", "HBAN",
-    "HCA", "HD", "HES", "HIG", "HII", "HLT", "HOLX", "HON", "HPE", "HPQ", "HRL", "HSIC", "HST", "HSY", "HUBB", "HUM",
-    "HWM", "IBM", "ICE", "IDXX", "IEX", "IFF", "ILMN", "INCY", "INTU", "INVH", "IR", "IRM", "ISRG", "IT", "ITW", "IVZ",
-    "J", "JBHT", "JBL", "JCI", "JKHY", "JNJ", "JNPR", "JPM", "K", "KDP", "KEY", "KEYS", "KHC", "KIM", "KLAC", "KMB",
-    "KMI", "KMX", "KO", "KR", "KVUE", "L", "LDOS", "LEN", "LH", "LHX", "LIN", "LKQ", "LLY", "LMT", "LNT", "LOW", "LRCX",
-    "LULU", "LUV", "LW", "LYB", "LYV", "MA", "MAA", "MAR", "MAS", "MCD", "MCHP", "MCK", "MCO", "MDLZ", "MDT", "MET",
-    "META", "MGM", "MHK", "MKC", "MKTX", "MLM", "MMC", "MMM", "MNST", "MO", "MOH", "MOS", "MPC", "MPWR", "MRK", "MRNA",
-    "MS", "MSFT", "MSI", "MTB", "MTCH", "MTD", "MU", "NCLH", "NDAQ", "NEE", "NEM", "NFG", "NFLX", "NI", "NKE", "NOC",
-    "NOW", "NRG", "NSC", "NTAP", "NTRS", "NUE", "NVDA", "NVR", "NWS", "NWSA", "NXPI", "O", "ODFL", "OKE", "OMC", "ON",
-    "ORCL", "ORLY", "OTIS", "OXY", "PANW", "PARA", "PAYC", "PAYX", "PCAR", "PCG", "PEG", "PEP", "PFE", "PFG", "PG", "PGR",
-    "PH", "PHM", "PKG", "PLD", "PLTR", "PM", "PNC", "PNR", "PNW", "PODD", "POOL", "PPG", "PPL", "PRU", "PSA", "PTC",
-    "PWR", "PYPL", "QCOM", "QRVO", "RCL", "RE", "REG", "REGN", "RF", "RJF", "RL", "RMD", "ROK", "ROL", "ROP", "ROST",
-    "RSG", "RTX", "RVTY", "SBAC", "SBUX", "SCHW", "SHW", "SIRI", "SJM", "SLB", "SMCI", "SNA", "SNPS", "SO", "SPG", "SPGI",
-    "SRE", "STE", "STLD", "STT", "STX", "STZ", "SWK", "SWKS", "SYK", "SYY", "T", "TAP", "TDG", "TDY", "TECH", "TEL",
-    "TER", "TFX", "TGT", "TJX", "TMO", "TMUS", "TPR", "TRGP", "TRMB", "TROW", "TRV", "TSCO", "TSLA", "TSN", "TT", "TTWO",
-    "TXN", "TXT", "TYL", "UAL", "UDR", "UHS", "ULTA", "UNH", "UNP", "UPS", "URI", "USB", "V", "VICI", "VLO", "VMC",
-    "VTRS", "VRTX", "VZ", "WAB", "WAT", "WBA", "WBD", "WDC", "WEC", "WELL", "WFC", "WM", "WMB", "WMT", "WRB", "WST",
-    "WTW", "WY", "WYNN", "XEL", "XOM", "XRAY", "XYL", "YUM", "ZBH", "ZBRA", "ZTS"
+SP500_ALL = ["A", "AAL", "AAPL", "ABBV", "ABNB", "ABT", "ACGL", "ACN", "ADBE", "ADI", "ADM", "ADP", "ADSK", "AEE", "AEP", "AES",
+"AFL", "AIG", "AIZ", "AJG", "AKAM", "ALB", "ALGN", "ALL", "ALLE", "AMAT", "AMD", "AME", "AMGN", "AMP", "AMT",
+"AMZN", "ANET", "ANSS", "AON", "AOS", "APA", "APD", "APH", "APTV", "ARE", "ATO", "AVB", "AVGO", "AVY", "AWK",
+"AXON", "AXP", "AYI", "AZO", "BA", "BAC", "BALL", "BAX", "BBWI", "BBY", "BDX", "BEN", "BF-B", "BG", "BIIB", "BIO",
+"BK", "BKNG", "BKR", "BLDR", "BLK", "BMY", "BR", "BRK-B", "BRO", "BSX", "BWA", "BX", "BXP", "C", "CAG", "CAH",
+"CARR", "CAT", "CB", "CBOE", "CBRE", "CCI", "CCL", "CDNS", "CDW", "CE", "CEG", "CF", "CFG", "CHD", "CHRW",
+"CHTR", "CI", "CINF", "CL", "CLX", "CMA", "CMCSA", "CME", "CMG", "CMI", "CMS", "CNC", "CNP", "COF", "COO", "COP",
+"COR", "COST", "CPB", "CPRT", "CPT", "CRL", "CRM", "CSGP", "CSX", "CTAS", "CTRA", "CTSH", "CTVA", "CVS", "CW", "D",
+"DAL", "DD", "DE", "DECK", "DFS", "DG", "DGX", "DHI", "DHR", "DIS", "DLR", "DLTR", "DOC", "DOV", "DOW", "DPZ", "DRI",
+"DTE", "DUK", "DVA", "DVN", "DXCM", "EA", "EBAY", "ECL", "ED", "EFX", "EG", "EIX", "EL", "ELV", "EMN", "EMR",
+"ENPH", "EOG", "EPAM", "EQIX", "EQR", "ESS", "ETN", "ETR", "EVRG", "EW", "EXC", "EXPD", "EXPE", "EXR", "F", "FANG",
+"FAST", "FI", "FICO", "FIS", "FITB", "FMC", "FOX", "FOXA", "FRT", "FSLR", "FTNT", "FTV", "GD", "GDDY", "GE", "GILD",
+"GIS", "GL", "GLW", "GM", "GNRC", "GOOG", "GOOGL", "GPC", "GPN", "GRMN", "GS", "GWRE", "GWW", "HAL", "HAS", "HBAN",
+"HCA", "HD", "HES", "HIG", "HII", "HLT", "HOLX", "HON", "HPE", "HPQ", "HRL", "HSIC", "HST", "HSY", "HUBB", "HUM",
+"HWM", "IBM", "ICE", "IDXX", "IEX", "IFF", "ILMN", "INCY", "INTU", "INVH", "IR", "IRM", "ISRG", "IT", "ITW", "IVZ",
+"J", "JBHT", "JBL", "JCI", "JKHY", "JNJ", "JNPR", "JPM", "K", "KDP", "KEY", "KEYS", "KHC", "KIM", "KLAC", "KMB",
+"KMI", "KMX", "KO", "KR", "KVUE", "L", "LDOS", "LEN", "LH", "LHX", "LIN", "LKQ", "LLY", "LMT", "LNT", "LOW", "LRCX",
+"LULU", "LUV", "LW", "LYB", "LYV", "MA", "MAA", "MAR", "MAS", "MCD", "MCHP", "MCK", "MCO", "MDLZ", "MDT", "MET",
+"META", "MGM", "MHK", "MKC", "MKTX", "MLM", "MMC", "MMM", "MNST", "MO", "MOH", "MOS", "MPC", "MPWR", "MRK", "MRNA",
+"MS", "MSFT", "MSI", "MTB", "MTCH", "MTD", "MU", "NCLH", "NDAQ", "NEE", "NEM", "NFG", "NFLX", "NI", "NKE", "NOC",
+"NOW", "NRG", "NSC", "NTAP", "NTRS", "NUE", "NVDA", "NVR", "NWS", "NWSA", "NXPI", "O", "ODFL", "OKE", "OMC", "ON",
+"ORCL", "ORLY", "OTIS", "OXY", "PANW", "PARA", "PAYC", "PAYX", "PCAR", "PCG", "PEG", "PEP", "PFE", "PFG", "PG", "PGR",
+"PH", "PHM", "PKG", "PLD", "PLTR", "PM", "PNC", "PNR", "PNW", "PODD", "POOL", "PPG", "PPL", "PRU", "PSA", "PTC",
+"PWR", "PYPL", "QCOM", "QRVO", "RCL", "RE", "REG", "REGN", "RF", "RJF", "RL", "RMD", "ROK", "ROL", "ROP", "ROST",
+"RSG", "RTX", "RVTY", "SBAC", "SBUX", "SCHW", "SHW", "SIRI", "SJM", "SLB", "SMCI", "SNA", "SNPS", "SO", "SPG", "SPGI",
+"SRE", "STE", "STLD", "STT", "STX", "STZ", "SWK", "SWKS", "SYK", "SYY", "T", "TAP", "TDG", "TDY", "TECH", "TEL",
+"TER", "TFX", "TGT", "TJX", "TMO", "TMUS", "TPR", "TRGP", "TRMB", "TROW", "TRV", "TSCO", "TSLA", "TSN", "TT", "TTWO",
+"TXN", "TXT", "TYL", "UAL", "UDR", "UHS", "ULTA", "UNH", "UNP", "UPS", "URI", "USB", "V", "VICI", "VLO", "VMC",
+"VTRS", "VRTX", "VZ", "WAB", "WAT", "WBA", "WBD", "WDC", "WEC", "WELL", "WFC", "WM", "WMB", "WMT", "WRB", "WST",
+"WTW", "WY", "WYNN", "XEL", "XOM", "XRAY", "XYL", "YUM", "ZBH", "ZBRA", "ZTS"
+   
 ]
 
 STPS_XLS_PATH = "stps_xls/302_0074.xls"  # .xls requiere xlrd instalado en el deploy
 
 BANXICO_TOKEN = "710446e886e30952133c0d23a4882d24fb2aafaa659b416b07a05d7b19d2a10f"
-INEGI_TOKEN = "852ed086-a989-499d-ad0b-59640f500062"
 UA = "Mozilla/5.0"
 
+HEADERS = {"User-Agent": "Mozilla/5.0"}
+
+# Si no tienes FRED_API_KEY en tu entorno, usa este valor:
+FRED_API_KEY = os.getenv("FRED_API_KEY") or "0eddd94e8ad9ae52f0559349ed41ee8f"
+
+# Ventana fija (tu pipeline)
+START_MONTH = "2024-02"   # últimos 24 meses vs ene-2026 -> 2024-02 .. 2026-01
+END_MONTH   = "2026-01"
+
 # =========================
-# HELPERS 24 MESES
+# HELPERS 24 MESES (BANXICO)
 # =========================
 def two_full_years_window(today=None):
     today = today or pd.Timestamp.today().normalize()
@@ -102,56 +113,345 @@ def banxico_series_24m(series_id: str, nombre: str, start: pd.Timestamp, end: pd
     df = df.sort_values("Fecha").groupby(["Fecha", "Indicador"], as_index=False)["Valor"].last()
     df = df[(df["Fecha"] >= start) & (df["Fecha"] <= end)]
     return df
+    default_tickers
+# =========================
+# HELPERS (TIME) PARA OECD/FRED
+# =========================
+def month_end_index(start_ym: str, end_ym: str) -> pd.DatetimeIndex:
+    start = pd.Timestamp(start_ym + "-01") + MonthEnd(0)
+    end   = pd.Timestamp(end_ym + "-01") + MonthEnd(0)
+    return pd.date_range(start=start, end=end, freq="ME")
 
-def inegi_series_24m(indicador_id: str, nombre: str, sistema: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-    url = (
-        "https://www.inegi.org.mx/app/api/indicadores/desarrolladores/json/"
-        f"INDICATOR/{indicador_id}/es/0700/false/{sistema}/2.0/{INEGI_TOKEN}?type=json"
-    )
-    r = requests.get(url, headers={"User-Agent": UA}, timeout=25, verify=False)
-    r.raise_for_status()
-    data = r.json()
-    obs = data["Series"][0]["OBSERVATIONS"]
+def to_month_end(s: pd.Series) -> pd.Series:
+    if s is None or len(s) == 0:
+        return pd.Series(dtype="float64")
+    idx = pd.to_datetime(s.index, errors="coerce")
+    s = pd.Series(pd.to_numeric(s.values, errors="coerce"), index=idx).dropna()
+    s.index = (s.index + MonthEnd(0)).normalize()
+    return s.groupby(s.index).last().sort_index()
 
-    rows = []
-    for o in obs:
-        tp = str(o.get("TIME_PERIOD", "")).replace("/", "-")
-        fecha = pd.to_datetime(tp + "-01", errors="coerce")
-        val = pd.to_numeric(o.get("OBS_VALUE"), errors="coerce")
-        if pd.notna(fecha) and pd.notna(val):
-            rows.append({"Indicador": nombre, "Fecha": fecha, "Valor": float(val)})
+def to_quarter_end(s: pd.Series) -> pd.Series:
+    if s is None or len(s) == 0:
+        return pd.Series(dtype="float64")
+    idx = pd.to_datetime(s.index, errors="coerce")
+    s = pd.Series(pd.to_numeric(s.values, errors="coerce"), index=idx).dropna()
+    s.index = (s.index + QuarterEnd(0)).normalize()
+    return s.groupby(s.index).last().sort_index()
 
-    df = pd.DataFrame(rows)
-    if df.empty:
-        return df
-
-    df["Fecha"] = df["Fecha"].dt.to_period("M").dt.to_timestamp()
-    df = df.sort_values("Fecha").groupby(["Fecha", "Indicador"], as_index=False)["Valor"].last()
-    df = df[(df["Fecha"] >= start) & (df["Fecha"] <= end)]
-    return df
+def q_to_month_ffill(s_q: pd.Series, month_index: pd.DatetimeIndex) -> pd.Series:
+    s_q = to_quarter_end(s_q)
+    if s_q.empty:
+        return pd.Series(index=month_index, dtype="float64")
+    return s_q.reindex(month_index, method="ffill")
 
 # =========================
-# ÚLTIMO DATO (TABLA DETALLE)
+# HELPERS (FETCH) OECD/FRED
+# =========================
+def fetch_oecd_csv(url: str) -> pd.DataFrame:
+    r = requests.get(url, headers=HEADERS, timeout=90)
+    r.raise_for_status()
+    return pd.read_csv(StringIO(r.text))
+
+def oecd_series_from_all(
+    url_all: str,
+    name: str,
+    must: dict,
+    time_parse: str,     # "monthly" | "quarterly" | "annual"
+    score_dims: list,    # columnas-dimensiones para agrupar
+    month_index: pd.DatetimeIndex,
+    ref_area: str = "MEX",
+    ffill_to_month: bool = True
+) -> pd.Series:
+    try:
+        df = fetch_oecd_csv(url_all)
+    except Exception:
+        return pd.Series(index=month_index, dtype="float64")
+
+    if "REF_AREA" not in df.columns or "TIME_PERIOD" not in df.columns or "OBS_VALUE" not in df.columns:
+        return pd.Series(index=month_index, dtype="float64")
+
+    mx = df[df["REF_AREA"] == ref_area].copy()
+    if mx.empty:
+        return pd.Series(index=month_index, dtype="float64")
+
+    for k, v in (must or {}).items():
+        if k in mx.columns:
+            mx = mx[mx[k].astype(str) == str(v)]
+
+    if mx.empty:
+        return pd.Series(index=month_index, dtype="float64")
+
+    mx["OBS_VALUE"] = pd.to_numeric(mx["OBS_VALUE"], errors="coerce")
+    mx = mx.dropna(subset=["OBS_VALUE"])
+    if mx.empty:
+        return pd.Series(index=month_index, dtype="float64")
+
+    # pick best group by count of non-null
+    if score_dims:
+        g = mx.groupby(score_dims)["OBS_VALUE"].count().sort_values(ascending=False)
+        best_key = g.index[0]
+        if not isinstance(best_key, tuple):
+            best_key = (best_key,)
+        mask = np.ones(len(mx), dtype=bool)
+        for col, val in zip(score_dims, best_key):
+            mask &= (mx[col].astype(str) == str(val))
+        mx = mx[mask].copy()
+
+    t = mx["TIME_PERIOD"].astype(str)
+
+    if time_parse == "monthly":
+        idx = pd.to_datetime(t, errors="coerce")
+        s = pd.Series(mx["OBS_VALUE"].values, index=idx).dropna().sort_index()
+        s = to_month_end(s)
+        return s.reindex(month_index)
+
+    if time_parse == "quarterly":
+        idx = pd.PeriodIndex(t, freq="Q").to_timestamp(how="end")
+        s = pd.Series(mx["OBS_VALUE"].values, index=idx).dropna().sort_index()
+        if ffill_to_month:
+            return q_to_month_ffill(s, month_index)
+        return to_quarter_end(s).reindex(month_index)
+
+    if time_parse == "annual":
+        idx = pd.to_datetime(t + "-12-31", errors="coerce")
+        s = pd.Series(mx["OBS_VALUE"].values, index=idx).dropna().sort_index()
+        s.index = s.index.normalize()
+        return s.reindex(month_index, method="ffill")
+
+    return pd.Series(index=month_index, dtype="float64")
+
+def fred_series(series_id: str, observation_start: str = "2024-01-01") -> pd.Series:
+    url = (
+        "https://api.stlouisfed.org/fred/series/observations"
+        f"?series_id={series_id}"
+        f"&api_key={FRED_API_KEY}"
+        "&file_type=json"
+        f"&observation_start={observation_start}"
+    )
+    r = requests.get(url, headers=HEADERS, timeout=60)
+    r.raise_for_status()
+    js = r.json()
+    obs = js.get("observations", [])
+    if not obs:
+        return pd.Series(dtype="float64")
+    df = pd.DataFrame(obs)[["date", "value"]]
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df["value"] = pd.to_numeric(df["value"], errors="coerce")
+    return df.set_index("date")["value"].dropna().sort_index()
+
+def first_nonempty_fred(series_ids: list) -> pd.Series:
+    for sid in series_ids:
+        try:
+            s = fred_series(sid)
+            if s.notna().any():
+                return s
+        except Exception:
+            pass
+    return pd.Series(dtype="float64")
+
+# =========================
+# OECD URLS (ALL) — LOS QUE YA TE FUNCIONARON
+# =========================
+URL_CLI = (
+    "https://sdmx.oecd.org/public/rest/data/"
+    "OECD.SDD.STES,DSD_STES@DF_CLI/.M.LI...AA...H"
+    "?startPeriod=2024-01&dimensionAtObservation=AllDimensions&format=csvfilewithlabels"
+)
+
+URL_CPI = (
+    "https://sdmx.oecd.org/public/rest/data/"
+    "MEI_CPI/MEX.CPALTT01.GP.M/all"
+    "?startPeriod=2024-01&format=csvfilewithlabels"
+)
+
+URL_UNEMP_ALL = (
+    "https://sdmx.oecd.org/public/rest/data/"
+    "OECD.SDD.TPS,DSD_LFS@DF_IALFS_UNE_M,1.0/all"
+    "?startPeriod=2024-01&format=csvfilewithlabels&dimensionAtObservation=AllDimensions"
+)
+
+URL_LFP_ALL = (
+    "https://sdmx.oecd.org/public/rest/data/"
+    "OECD.SDD.TPS,DSD_LFS@DF_IALFS_LF_WAP_Q,1.0/all"
+    "?startPeriod=2024-01&format=csvfilewithlabels&dimensionAtObservation=AllDimensions"
+)
+
+URL_INDSERV_ALL = (
+    "https://sdmx.oecd.org/public/rest/data/"
+    "OECD.SDD.STES,DSD_STES@DF_INDSERV/all"
+    "?startPeriod=2024-01&format=csvfilewithlabels&dimensionAtObservation=AllDimensions"
+)
+
+URL_CONS_ALL = (
+    "https://sdmx.oecd.org/public/rest/data/"
+    "OECD.SDD.NAD,DSD_NAMAIN10@DF_TABLE5_T117,1.0/all"
+    "?startPeriod=2024-01&format=csvfilewithlabels&dimensionAtObservation=AllDimensions"
+)
+
+# =========================
+# BUILD TABLA MACRO (REEMPLAZA INEGI)
+# =========================
+def build_macro_table_24m() -> pd.DataFrame:
+    mi = month_end_index(START_MONTH, END_MONTH)
+    out = pd.DataFrame(index=mi)
+
+    # 1) IGAE a/a (CLI nivel) + IGAE m/m (% m/m)
+    s_cli = oecd_series_from_all(
+        URL_CLI,
+        name="CLI",
+        must={"FREQ": "M", "MEASURE": "LI", "TRANSFORMATION": "IX"},
+        time_parse="monthly",
+        score_dims=["FREQ", "MEASURE", "TRANSFORMATION", "ADJUSTMENT", "TIME_HORIZ", "METHODOLOGY"],
+        month_index=mi,
+    )
+    out["IGAE a/a"] = s_cli
+    out["IGAE m/m"] = out["IGAE a/a"].pct_change(fill_method=None) * 100
+
+    # 2) Inflación (CPI) — endpoint que ya te dio filas
+    try:
+        df_cpi = fetch_oecd_csv(URL_CPI)
+        mx = df_cpi[df_cpi["REF_AREA"] == "MEX"].copy()
+        mx["TIME_PERIOD"] = pd.to_datetime(mx["TIME_PERIOD"], errors="coerce")
+        mx["OBS_VALUE"] = pd.to_numeric(mx["OBS_VALUE"], errors="coerce")
+        s_inf = mx.dropna(subset=["TIME_PERIOD"]).set_index("TIME_PERIOD")["OBS_VALUE"].sort_index()
+        out["Inflacion"] = to_month_end(s_inf).reindex(mi)
+    except Exception:
+        out["Inflacion"] = np.nan
+
+    # 3) Desempleo (OECD mensual)
+    out["Desempleo"] = oecd_series_from_all(
+        URL_UNEMP_ALL,
+        name="Desempleo",
+        must={
+            "FREQ": "M",
+            "MEASURE": "UNE_LF_M",
+            "UNIT_MEASURE": "PT_LF_SUB",
+            "TRANSFORMATION": "_Z",
+            "ADJUSTMENT": "N",
+            "SEX": "_T",
+            "AGE": "Y_GE15",
+            "ACTIVITY": "_Z",
+        },
+        time_parse="monthly",
+        score_dims=["FREQ", "MEASURE", "UNIT_MEASURE", "TRANSFORMATION", "ADJUSTMENT", "SEX", "AGE", "ACTIVITY"],
+        month_index=mi,
+    )
+
+    # 4) Participación empleo — OECD trimestral -> mensual (ffill)
+    out["Partic Empleo"] = oecd_series_from_all(
+        URL_LFP_ALL,
+        name="Partic Empleo",
+        must={
+            "MEASURE": "LF_WAP",
+            "UNIT_MEASURE": "PT_WAP_SUB",
+            "TRANSFORMATION": "_Z",
+            "ADJUSTMENT": "N",
+            "SEX": "_T",
+            "AGE": "Y_GE15",
+            "ACTIVITY": "_Z",
+            "FREQ": "Q",
+        },
+        time_parse="quarterly",
+        score_dims=["FREQ", "MEASURE", "UNIT_MEASURE", "TRANSFORMATION", "ADJUSTMENT", "SEX", "AGE", "ACTIVITY"],
+        month_index=mi,
+        ffill_to_month=True,
+    )
+
+    # 5) PIB a/a (FRED, trimestral -> mensual ffill)
+    s_pib = first_nonempty_fred(["MEXGDPRQPSMEI"])
+    out["PIB a/a"] = q_to_month_ffill(s_pib, mi)
+
+    # 6) Act Industrial (OECD INDSERV) — auto-pick
+    out["Act Industrial"] = oecd_series_from_all(
+        URL_INDSERV_ALL,
+        name="Act Industrial",
+        must={"FREQ": "M", "UNIT_MEASURE": "IX", "TRANSFORMATION": "_Z", "ADJUSTMENT": "N"},
+        time_parse="monthly",
+        score_dims=["ACTIVITY", "MEASURE", "ADJUSTMENT", "FREQ", "UNIT_MEASURE", "TRANSFORMATION"],
+        month_index=mi,
+    )
+
+    # 7) Consumo Bienes / Servicios (OECD anual 2024 -> mensual ffill)
+    try:
+        df_cons = fetch_oecd_csv(URL_CONS_ALL)
+        mx = df_cons[df_cons["REF_AREA"] == "MEX"].copy()
+        mx["OBS_VALUE"] = pd.to_numeric(mx["OBS_VALUE"], errors="coerce")
+        mx_a = mx[mx["FREQ"].astype(str) == "A"].copy()
+
+        def annual_to_month_ffill(mx_a_sub: pd.DataFrame) -> pd.Series:
+            if mx_a_sub.empty:
+                return pd.Series(index=mi, dtype="float64")
+            idx = pd.to_datetime(mx_a_sub["TIME_PERIOD"].astype(str) + "-12-31", errors="coerce")
+            s = pd.Series(mx_a_sub["OBS_VALUE"].values, index=idx).dropna().sort_index()
+            s.index = s.index.normalize()
+            return s.reindex(mi, method="ffill")
+
+        bienes = mx_a[(mx_a["TRANSACTION"].astype(str) == "P31DC") & (mx_a["UNIT_MEASURE"].astype(str) == "XDC")].copy()
+        serv   = mx_a[(mx_a["TRANSACTION"].astype(str) == "P314")  & (mx_a["UNIT_MEASURE"].astype(str) == "XDC")].copy()
+
+        out["Consumo Bienes"] = annual_to_month_ffill(bienes)
+        out["Consumo Servicios"] = annual_to_month_ffill(serv)
+    except Exception:
+        out["Consumo Bienes"] = np.nan
+        out["Consumo Servicios"] = np.nan
+
+    # 8) IFB Total / IFB Const (FRED, trimestral -> mensual ffill)
+    s_ifb_total = first_nonempty_fred(["NFIRSAXDCMXQ", "NFIRNSAXDCMXQ"])
+    s_ifb_const = first_nonempty_fred(["NFIRNSAXDCMXQ", "NFIRSAXDCMXQ"])
+    out["IFB Total"] = q_to_month_ffill(s_ifb_total, mi)
+    out["IFB Const"] = q_to_month_ffill(s_ifb_const, mi)
+
+    # 9) Ind Manufac (FRED) — fallbacks
+    s_man = first_nonempty_fred(["MEXPROMANMISMEI", "MEXPRMNTO01IXOBM", "MEXPROMANQISMEI"])
+    out["Ind Manufac"] = to_month_end(s_man).reindex(mi)
+
+    cols = [
+        "Consumo Bienes", "Consumo Servicios", "Partic Empleo", "Desempleo",
+        "PIB a/a", "IGAE a/a", "IGAE m/m", "Inflacion", "Act Industrial",
+        "IFB Const", "IFB Total", "Ind Manufac"
+    ]
+    out = out[cols]
+    out.index = out.index.strftime("%Y-%m")
+    return out
+
+# =========================
+# ÚLTIMO DATO (TABLA DETALLE) — REEMPLAZA INEGI POR TABLA MACRO
 # =========================
 def fetch_all_data() -> pd.DataFrame:
     results = []
 
-    # STPS local (si xlrd no está en deploy, caerá aquí sin romper la app)
+    # 0) TABLA MACRO (OECD/FRED) — para métricas “tipo INEGI”
+    try:
+        macro = build_macro_table_24m()
+        last_ym = macro.dropna(how="all").index.max()
+        last_row = macro.loc[last_ym] if last_ym is not None else pd.Series(dtype=float)
+    except Exception as e:
+        last_ym = None
+        last_row = pd.Series(dtype=float)
+        results.append({"Fuente": "Macro (OECD/FRED)", "Indicador": "Macro table", "Valor": 0.0, "Fecha": f"Error: {e}"})
+
+    def add_macro(ind_name, col_name, fuente):
+        if col_name in last_row.index and pd.notna(last_row[col_name]):
+            results.append({"Fuente": fuente, "Indicador": ind_name, "Valor": float(last_row[col_name]), "Fecha": str(last_ym)})
+        else:
+            results.append({"Fuente": fuente, "Indicador": ind_name, "Valor": np.nan, "Fecha": str(last_ym)})
+
+    add_macro("Inflación", "Inflacion", "OECD")
+    add_macro("Tasa Desempleo", "Desempleo", "OECD")
+    add_macro("IGAE", "IGAE a/a", "OECD")
+    add_macro("PIB a/a", "PIB a/a", "FRED")
+
+    # 1) STPS local
     try:
         df_stps = pd.read_excel(STPS_XLS_PATH, sheet_name="Salario Mínimo 2019-2025", engine="xlrd")
         val_salario = pd.to_numeric(df_stps.stack(), errors="coerce").dropna().iloc[-1]
         results.append(
-            {
-                "Fuente": "STPS",
-                "Indicador": "Salario Mínimo",
-                "Valor": float(val_salario),
-                "Fecha": datetime.today().strftime("%Y-%m-%d"),
-            }
+            {"Fuente": "STPS", "Indicador": "Salario Mínimo", "Valor": float(val_salario), "Fecha": datetime.today().strftime("%Y-%m-%d")}
         )
     except Exception as e:
-        results.append({"Fuente": "STPS", "Indicador": "Salario Mínimo", "Valor": 0.0, "Fecha": f"Error: {e}"})
+        results.append({"Fuente": "STPS", "Indicador": "Salario Mínimo", "Valor": np.nan, "Fecha": f"Error: {e}"})
 
-    # Banxico oportuno
+    # 2) Banxico oportuno
     bx_last = {
         "Exportaciones": "SE36664",
         "Importaciones": "SE36672",
@@ -171,30 +471,7 @@ def fetch_all_data() -> pd.DataFrame:
                 {"Fuente": "Banxico", "Indicador": nom, "Valor": float(str(d["dato"]).replace(",", "")), "Fecha": d["fecha"]}
             )
         except Exception as e:
-            results.append({"Fuente": "Banxico", "Indicador": nom, "Valor": 0.0, "Fecha": f"Error: {e}"})
-
-    # INEGI último
-    inegi_last = {
-        "6200011881": ("Inflación General", "BISE"),
-        "6200093972": ("Tasa Desempleo", "BISE"),
-        "494056": ("IGAE (Actividad Econ)", "BIE"),
-        "6207132027": ("PIB Anual", "BISE"),
-    }
-    for sid, (nom, sistema) in inegi_last.items():
-        try:
-            url = (
-                "https://www.inegi.org.mx/app/api/indicadores/desarrolladores/json/"
-                f"INDICATOR/{sid}/es/0700/false/{sistema}/2.0/{INEGI_TOKEN}?type=json"
-            )
-            r = requests.get(url, headers={"User-Agent": UA}, timeout=25, verify=False)
-            r.raise_for_status()
-            data = r.json()
-            last = data["Series"][0]["OBSERVATIONS"][-1]
-            results.append(
-                {"Fuente": f"INEGI ({sistema})", "Indicador": nom, "Valor": float(last["OBS_VALUE"]), "Fecha": last["TIME_PERIOD"]}
-            )
-        except Exception as e:
-            results.append({"Fuente": "INEGI", "Indicador": nom, "Valor": 0.0, "Fecha": f"Error: {e}"})
+            results.append({"Fuente": "Banxico", "Indicador": nom, "Valor": np.nan, "Fecha": f"Error: {e}"})
 
     return pd.DataFrame(results)
 
@@ -303,14 +580,17 @@ def preselect_universe(prices: pd.DataFrame, m=80, top_sharpe=200, rf=0.0):
     return selected
 
 def max_sharpe_for_set(prices: pd.DataFrame, rf=0.0):
-    prices = prices.dropna(how="any")
-    if prices.shape[0] < 252 or prices.shape[1] < 2:
-        raise ValueError("Datos insuficientes para optimizar")
+    prices = prices.sort_index().ffill(limit=5).dropna(how="any")
+
+    if prices.shape[0] < 200 or prices.shape[1] < 2:
+        raise ValueError("Datos insuficientes")
 
     mu = expected_returns.mean_historical_return(prices)
     S = risk_models.CovarianceShrinkage(prices).ledoit_wolf()
+
     ef = EfficientFrontier(mu, S)
     ef.max_sharpe(risk_free_rate=rf)
+
     w = ef.clean_weights()
     ret, vol, sharpe = ef.portfolio_performance(risk_free_rate=rf)
     return sharpe, (ret, vol), w
@@ -340,7 +620,7 @@ def option3_best_sp500_combo(
     k=5,
     period="3y",
     rf=0.0,
-    min_obs=252 * 2,
+    min_obs=252,
     m=80,
     top_sharpe=200,
     trials=50000,
@@ -380,7 +660,7 @@ st.markdown(
 )
 
 st.title("📊 Monitor Económico: México")
-st.caption("STPS (archivo), Banxico e INEGI (API)")
+st.caption("STPS (archivo), Banxico (API), OECD/FRED (reemplazo de INEGI)")
 
 with st.spinner("Sincronizando..."):
     df = fetch_all_data()
@@ -390,12 +670,13 @@ if not df.empty:
 
     def get_val(nombre):
         temp = df[df["Indicador"].astype(str).str.contains(nombre, case=False, na=False)]
-        return float(temp.iloc[0]["Valor"]) if not temp.empty else 0.0
+        v = temp.iloc[0]["Valor"] if not temp.empty else np.nan
+        return float(v) if pd.notna(v) else np.nan
 
-    c1.metric("💰 Salario Mínimo", f"${get_val('Salario'):,.2f}")
-    c2.metric("🏷️ Inflación", f"{get_val('Inflación'):,.2f}%")
-    c3.metric("📉 Cetes 28d", f"{get_val('Cetes'):,.2f}%")
-    c4.metric("🏗️ IGAE", f"{get_val('IGAE'):,.2f}%")
+    c1.metric("💰 Salario Mínimo", f"${(get_val('Salario') or 0.0):,.2f}")
+    c2.metric("🏷️ Inflación", f"{(get_val('Inflación') if pd.notna(get_val('Inflación')) else 0.0):,.2f}%")
+    c3.metric("📉 Cetes 28d", f"{(get_val('Cetes') if pd.notna(get_val('Cetes')) else 0.0):,.2f}%")
+    c4.metric("🏗️ IGAE", f"{(get_val('IGAE') if pd.notna(get_val('IGAE')) else 0.0):,.2f}")
 
 st.divider()
 st.subheader("📋 Detalle de Indicadores (último dato)")
@@ -408,8 +689,8 @@ def fmt_val(row):
     if pd.isna(v):
         return str(row.get("Valor"))
     if any(k in ind for k in ["Inflación", "PIB", "IGAE", "Desempleo", "Cetes"]):
-        return f"{float(v):,.2f}%"
-    return f"${float(v):,.2f}"
+        return f"{float(v):,.2f}"
+    return f"{float(v):,.2f}"
 
 if not df_vis.empty:
     df_vis["Valor"] = df_vis.apply(fmt_val, axis=1)
@@ -417,7 +698,7 @@ if not df_vis.empty:
 st.dataframe(df_vis, use_container_width=True, hide_index=True)
 
 # =========================
-# HISTÓRICO 24 MESES
+# HISTÓRICO 24 MESES (TABLA) — EN VEZ DE INEGI: OECD/FRED
 # =========================
 st.divider()
 st.subheader("🗓️ Histórico mensual (últimos 24 meses)")
@@ -427,6 +708,7 @@ st.caption(f"Ventana automática: {start_24m.strftime('%Y-%m')} → {end_24m.str
 
 frames = []
 
+# Banxico mensual
 bx_ids_24m = {
     "Exportaciones": "SE36664",
     "Importaciones": "SE36672",
@@ -439,20 +721,36 @@ for nom, sid in bx_ids_24m.items():
     except Exception as e:
         st.write(f"Banxico {nom} error: {e}")
 
-inegi_cfg_24m = {
-    "6200011881": ("Inflación General", "BISE"),
-    "6200093972": ("Tasa Desempleo", "BISE"),
-    "494056": ("IGAE", "BIE"),
-}
-for sid, (nom, sistema) in inegi_cfg_24m.items():
-    try:
-        frames.append(inegi_series_24m(sid, nom, sistema, start_24m, end_24m))
-    except Exception as e:
-        st.write(f"INEGI {nom} error: {e}")
+# Macro OECD/FRED
+try:
+    macro24 = build_macro_table_24m()
+    macro24_idx = pd.to_datetime(macro24.index + "-01", errors="coerce") + MonthEnd(0)
+    macro24_df = macro24.copy()
+    macro24_df.insert(0, "Fecha", macro24_idx)
+except Exception as e:
+    macro24_df = pd.DataFrame()
+    st.write(f"Macro (OECD/FRED) error: {e}")
+
+# Convertir macro24 a formato largo
+macro_long = pd.DataFrame()
+if not macro24_df.empty:
+    tmp = macro24_df.copy()
+    tmp = tmp.set_index("Fecha")
+    tmp = tmp.reset_index().melt(id_vars=["Fecha"], var_name="Indicador", value_name="Valor")
+    tmp = tmp.dropna(subset=["Fecha"])
+    tmp["Valor"] = pd.to_numeric(tmp["Valor"], errors="coerce")
+    tmp = tmp.dropna(subset=["Valor"])
+    macro_long = tmp[["Fecha", "Indicador", "Valor"]].copy()
 
 if frames and any(not f.empty for f in frames):
     all_hist = pd.concat([f for f in frames if not f.empty], ignore_index=True)
+else:
+    all_hist = pd.DataFrame(columns=["Fecha", "Indicador", "Valor"])
 
+if not macro_long.empty:
+    all_hist = pd.concat([all_hist, macro_long], ignore_index=True)
+
+if not all_hist.empty:
     all_hist["Fecha"] = pd.to_datetime(all_hist["Fecha"], errors="coerce")
     all_hist["Valor"] = pd.to_numeric(all_hist["Valor"], errors="coerce")
     all_hist = all_hist.dropna(subset=["Fecha", "Valor", "Indicador"])
@@ -472,14 +770,20 @@ if frames and any(not f.empty for f in frames):
     idx = pd.period_range(start_24m.to_period("M"), end_24m.to_period("M"), freq="M").to_timestamp()
     hist = hist.reindex(idx)
 
-    hist_out = hist.reset_index().rename(columns={"index": "Fecha"})
-    hist_out["Fecha"] = pd.to_datetime(hist_out["Fecha"]).dt.to_period("M").astype(str)
+    # --- CAMBIO A FORMATO HORIZONTAL AQUÍ ---
+    # Formateamos la fecha para que se vea limpia como encabezado (YYYY-MM)
+    hist.index = hist.index.strftime('%Y-%m')
+    
+    # Transponemos el DataFrame
+    hist_horizontal = hist.transpose()
 
-    st.dataframe(hist_out, use_container_width=True, hide_index=True)
+    # Mostramos la tabla (quitamos hide_index porque ahora los nombres de indicadores están en el index)
+    st.dataframe(hist_horizontal, use_container_width=True)
 
     out2 = io.BytesIO()
     with pd.ExcelWriter(out2, engine="openpyxl") as writer:
-        hist_out.to_excel(writer, index=False, sheet_name="Historico_24m")
+        # Guardamos también en horizontal para el Excel
+        hist_horizontal.to_excel(writer, index=True, sheet_name="Historico_24m")
 
     st.download_button(
         label="📥 Descargar Histórico 24 meses (Excel)",
@@ -489,7 +793,6 @@ if frames and any(not f.empty for f in frames):
     )
 else:
     st.warning("Histórico vacío: no se pudieron traer series en la ventana de 24 meses.")
-
 # =========================
 # PORTAFOLIO MÍNIMA VARIANZA
 # =========================
@@ -498,7 +801,23 @@ st.subheader("🧮 Portafolio de Mínima Varianza (S&P 500)")
 
 with st.expander("Configurar y calcular", expanded=True):
     default_tickers = ["AAPL", "MSFT", "AMZN", "NVDA", "JPM", "XOM"]
-    seleccion = st.multiselect("Selecciona 2+ tickers", options=SP500_ALL, default=default_tickers)
+
+
+    SP500_ALL = [str(x).strip().upper() for x in SP500_ALL if pd.notna(x)]
+    SP500_ALL = list(dict.fromkeys(SP500_ALL))
+
+    # normaliza defaults y filtra a los que sí existan
+    default_tickers = [t.strip().upper() for t in default_tickers]
+    default_tickers = [t for t in default_tickers if t in SP500_ALL]
+    if len(default_tickers) == 0:
+        default_tickers = SP500_ALL[:6]
+
+    seleccion = st.multiselect(
+        "Selecciona 2+ tickers",
+        options=SP500_ALL,
+        default=default_tickers
+)
+
     run_opt = st.button("Calcular mínima varianza")
 
 if run_opt:
@@ -526,6 +845,66 @@ if run_opt:
             wdf["Peso (%)"] = (wdf["Peso"] * 100).round(2)
             wdf = wdf.drop(columns=["Peso"])
             st.dataframe(wdf, use_container_width=True, hide_index=True)
+
+# =========================
+# MEJOR PORTAFOLIO (MAX SHARPE BUSCANDO COMBINACIONES)
+# =========================
+st.divider()
+st.subheader("🏆 Mejor Portafolio (Max Sharpe) buscando combinaciones")
+
+with st.expander("Configurar búsqueda", expanded=False):
+    k = st.number_input("Número de acciones en el portafolio (k)", min_value=2, max_value=25, value=5, step=1)
+    m = st.number_input("Universo preseleccionado (m)", min_value=20, max_value=200, value=80, step=10)
+    top_sh = st.number_input("Top por Sharpe individual para candidatos", min_value=50, max_value=500, value=200, step=25)
+    trials = st.number_input("Iteraciones (trials)", min_value=1000, max_value=200000, value=20000, step=1000)
+    rf = st.number_input("Tasa libre de riesgo (rf)", min_value=0.0, max_value=0.20, value=0.00, step=0.005, format="%.3f")
+    seed = st.number_input("Seed", min_value=1, max_value=999999, value=123, step=1)
+
+run_best = st.button("Buscar mejor portafolio (Max Sharpe)")
+
+if run_best:
+    with st.spinner("Descargando precios + preselección + búsqueda..."):
+        best = option3_best_sp500_combo(
+            SP500_ALL,
+            k=int(k),
+            m=int(m),
+            top_sharpe=int(top_sh),
+            trials=int(trials),
+            rf=float(rf),
+            seed=int(seed),
+            period="3y",
+            min_obs=252*2,
+        )
+
+    if best.get("combo") is None:
+        st.warning("No se encontró portafolio (datos insuficientes o falló la descarga).")
+    else:
+        ret, vol = best["perf"]
+        st.metric("Sharpe", f"{best['sharpe']:.3f}")
+        c1, c2 = st.columns(2)
+        c1.metric("Retorno esperado anual", f"{ret*100:.2f}%")
+        c2.metric("Volatilidad anual", f"{vol*100:.2f}%")
+
+        st.write("**Tickers (combo ganador):**", list(best["combo"]))
+
+        w = best.get("weights_series", pd.Series(dtype=float))
+        if not w.empty:
+            wdf = w.reset_index()
+            wdf.columns = ["Ticker", "Peso"]
+            wdf["Peso (%)"] = (wdf["Peso"] * 100).round(2)
+            st.dataframe(wdf, use_container_width=True, hide_index=True)
+        else:
+            st.warning("Se encontró combo, pero los pesos quedaron vacíos.")
+
+        out = io.BytesIO()
+        with pd.ExcelWriter(out, engine="openpyxl") as writer:
+            wdf.to_excel(writer, index=False, sheet_name="Mejor_Portafolio")
+        st.download_button(
+            "📥 Descargar pesos (Excel)",
+            data=out.getvalue(),
+            file_name=f"Mejor_Portafolio_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
 
 # =========================
 # SUSCRIPCIONES
